@@ -1,20 +1,26 @@
 package com.moneyminder.depense.service;
 
+import com.moneyminder.depense.NotificationPublisher;
+import com.moneyminder.depense.RabbitMQConfig;
 import com.moneyminder.depense.client.UtilisateurClient;
 import com.moneyminder.depense.dto.DepenseDTO;
 import com.moneyminder.depense.dto.UtilisateurDTO;
 import com.moneyminder.depense.model.Depense;
 import com.moneyminder.depense.repository.DepenseRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class DepenseService {
-
+    @Autowired
+    private NotificationPublisher notificationPublisher;
     private final DepenseRepository repository;
     private final UtilisateurClient utilisateurClient;  // ← nouveau
 
@@ -30,6 +36,16 @@ public class DepenseService {
         // 2. Sauvegarder la dépense
         Depense depense = toEntity(dto);
         Depense sauvegardee = repository.save(depense);
+        Map<String, Object> data = new HashMap<>();
+        data.put("montant",   depense.getMontant());
+        data.put("categorie", depense.getCategorie());
+
+        notificationPublisher.publier(
+                RabbitMQConfig.KEY_DEPENSE,
+                depense.getUserId(),
+                "Nouvelle dépense ajoutée : " + depense.getCategorie() + " (" + depense.getMontant() + " DT)",
+                data
+        );
 
         // 3. Retourner avec les infos utilisateur
         return toDTO(sauvegardee, utilisateur);
